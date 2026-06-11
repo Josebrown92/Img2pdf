@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ImgToPDF — Image to PDF Converter</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16161a;
+      --border: #2a2a30;
+      --accent: #ff6b35;
+      --accent-dim: rgba(255, 107, 53, 0.12);
+      --accent-glow: rgba(255, 107, 53, 0.25);
+      --text: #f0ede8;
+      --muted: #7a7a85;
+      --success: #4ade80;
+      --error: #f87171;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-mark {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: #fff;
+    }
+
+    .logo-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-text span { color: var(--accent); }
+
+    main {
+      flex: 1;
+      max-width: 780px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 52px;
+    }
+
+    .hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 14px;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* Drop zone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      background: var(--surface);
+    }
+
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 42px;
+      margin-bottom: 14px;
+      display: block;
+    }
+
+    .drop-label {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .drop-sub {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .drop-sub strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Preview grid */
+    #preview-section { display: none; margin-top: 28px; }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .preview-header h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    #clear-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    #clear-btn:hover { border-color: var(--error); color: var(--error); }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 12px;
+    }
+
+    .preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .preview-item .file-name {
+      position: absolute;
+      bottom: 0;
+      left: 0; right: 0;
+      background: rgba(0,0,0,0.7);
+      font-size: 10px;
+      padding: 4px 6px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Options panel */
+    .options-panel {
+      margin-top: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .option-group { display: flex; flex-direction: column; gap: 8px; }
+    .option-group.full { grid-column: 1 / -1; }
+
+    .option-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .seg-group {
+      display: flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .seg-group input[type="radio"] { display: none; }
+
+    .seg-group label {
+      flex: 1;
+      padding: 9px 14px;
+      text-align: center;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--muted);
+    }
+
+    .seg-group input[type="radio"]:checked + label {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 24px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    .toggle-desc {
+      font-size: 14px;
+      color: var(--text);
+    }
+    .toggle-desc small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Convert button */
+    #convert-btn {
+      margin-top: 28px;
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: -0.3px;
+    }
+
+    #convert-btn:hover { opacity: 0.9; }
+    #convert-btn:active { transform: scale(0.99); }
+    #convert-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* Progress / status */
+    #status-bar {
+      display: none;
+      margin-top: 20px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      align-items: center;
+      gap: 10px;
+    }
+    #status-bar.loading {
+      display: flex;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-glow);
+      color: var(--accent);
+    }
+    #status-bar.success {
+      display: flex;
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      color: var(--success);
+    }
+    #status-bar.error {
+      display: flex;
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: var(--error);
+    }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Supported formats badge row */
+    .formats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 48px;
+      justify-content: center;
+    }
+
+    .fmt-badge {
+      padding: 5px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 40px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 520px) {
+      .options-panel { grid-template-columns: 1fr; }
+      header { padding: 20px; }
+      main { padding: 40px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">P</div>
+  <div class="logo-text">Img<span>PDF</span></div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Turn any image<br/>into a <em>clean PDF</em></h1>
+    <p>PNG, JPG, WebP, GIF and more — converted instantly, right in your browser.</p>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="file-input" accept="image/*" multiple />
+    <span class="drop-icon">🖼️</span>
+    <div class="drop-label">Drop images here</div>
+    <div class="drop-sub">or click to browse · <strong>up to 50 MB total</strong></div>
+  </div>
+
+  <div id="preview-section">
+    <div class="preview-header">
+      <h3 id="file-count">0 images selected</h3>
+      <button id="clear-btn">Clear all</button>
+    </div>
+    <div class="preview-grid" id="preview-grid"></div>
+  </div>
+
+  <div class="options-panel">
+    <div class="option-group">
+      <span class="option-label">Page Size</span>
+      <div class="seg-group">
+        <input type="radio" name="page_size" id="ps-a4" value="A4" checked />
+        <label for="ps-a4">A4</label>
+        <input type="radio" name="page_size" id="ps-letter" value="Letter" />
+        <label for="ps-letter">Letter</label>
+      </div>
+    </div>
+
+    <div class="option-group">
+      <span class="option-label">Orientation</span>
+      <div class="seg-group">
+        <input type="radio" name="orientation" id="or-port" value="portrait" checked />
+        <label for="or-port">Portrait</label>
+        <input type="radio" name="orientation" id="or-land" value="landscape" />
+        <label for="or-land">Landscape</label>
+      </div>
+    </div>
+
+    <div class="option-group full">
+      <span class="option-label">Image Fit</span>
+      <div class="seg-group">
+        <input type="radio" name="fit_mode" id="fm-fit" value="fit" checked />
+        <label for="fm-fit">Fit (margins)</label>
+        <input type="radio" name="fit_mode" id="fm-fill" value="fill" />
+        <label for="fm-fill">Fill page</label>
+        <input type="radio" name="fit_mode" id="fm-orig" value="original" />
+        <label for="fm-orig">Original size</label>
+      </div>
+    </div>
+
+    <div class="option-group full">
+      <span class="option-label">Output</span>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="combine-toggle" />
+          <span class="toggle-slider"></span>
+        </label>
+        <div class="toggle-desc">
+          Combine into one PDF
+          <small>Off = separate PDF per image (zipped if multiple)</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="convert-btn" disabled>Convert to PDF</button>
+
+  <div id="status-bar">
+    <span class="spinner"></span>
+    <span id="status-text">Converting…</span>
+  </div>
+
+  <div class="formats">
+    <span class="fmt-badge">PNG</span>
+    <span class="fmt-badge">JPG / JPEG</span>
+    <span class="fmt-badge">WebP</span>
+    <span class="fmt-badge">GIF</span>
+    <span class="fmt-badge">BMP</span>
+    <span class="fmt-badge">TIFF</span>
+  </div>
+</main>
+
+<footer>Built with Python · Flask · Pillow · ReportLab</footer>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const previewSection = document.getElementById('preview-section');
+  const previewGrid = document.getElementById('preview-grid');
+  const fileCount = document.getElementById('file-count');
+  const clearBtn = document.getElementById('clear-btn');
+  const convertBtn = document.getElementById('convert-btn');
+  const statusBar = document.getElementById('status-bar');
+  const statusText = document.getElementById('status-text');
+
+  let selectedFiles = [];
+
+  // Drag-over highlight
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    addFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
+  });
+
+  fileInput.addEventListener('change', () => {
+    addFiles(Array.from(fileInput.files));
+    fileInput.value = '';
+  });
+
+  function addFiles(newFiles) {
+    selectedFiles = [...selectedFiles, ...newFiles];
+    renderPreviews();
+  }
+
+  function renderPreviews() {
+    previewGrid.innerHTML = '';
+    selectedFiles.forEach((file, i) => {
+      const url = URL.createObjectURL(file);
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      item.innerHTML = `<img src="${url}" alt="${file.name}" /><span class="file-name">${file.name}</span>`;
+      previewGrid.appendChild(item);
+    });
+
+    const count = selectedFiles.length;
+    fileCount.textContent = `${count} image${count !== 1 ? 's' : ''} selected`;
+    previewSection.style.display = count > 0 ? 'block' : 'none';
+    convertBtn.disabled = count === 0;
+    hideStatus();
+  }
+
+  clearBtn.addEventListener('click', () => {
+    selectedFiles = [];
+    renderPreviews();
+  });
+
+  convertBtn.addEventListener('click', async () => {
+    if (!selectedFiles.length) return;
+
+    const formData = new FormData();
+    selectedFiles.forEach(f => formData.append('images', f));
+    formData.append('page_size', document.querySelector('input[name="page_size"]:checked').value);
+    formData.append('orientation', document.querySelector('input[name="orientation"]:checked').value);
+    formData.append('fit_mode', document.querySelector('input[name="fit_mode"]:checked').value);
+    formData.append('combine', document.getElementById('combine-toggle').checked ? 'true' : 'false');
+
+    showStatus('loading', 'Converting your images…');
+    convertBtn.disabled = true;
+
+    try {
+      const response = await fetch('/convert', { method: 'POST', body: formData });
+
+      if (!response.ok) {
+        const err = await response.json();
+        showStatus('error', err.error || 'Conversion failed. Please try again.');
+        return;
+      }
+
+      // Trigger download
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const nameMatch = disposition.match(/filename="?([^"]+)"?/);
+      const filename = nameMatch ? nameMatch[1] : 'converted.pdf';
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      const isZip = filename.endsWith('.zip');
+      showStatus('success', isZip
+        ? `✓ Done! ${selectedFiles.length} PDFs downloaded as ZIP.`
+        : `✓ Done! "${filename}" downloaded.`
+      );
+    } catch (err) {
+      showStatus('error', 'Network error. Is the server running?');
+    } finally {
+      convertBtn.disabled = false;
+    }
+  });
+
+  function showStatus(type, msg) {
+    statusBar.className = type;
+    statusText.textContent = msg;
+    statusBar.style.display = 'flex';
+    if (type !== 'loading') {
+      const spinner = statusBar.querySelector('.spinner');
+      if (spinner) spinner.style.display = 'none';
+    } else {
+      const spinner = statusBar.querySelector('.spinner');
+      if (spinner) spinner.style.display = '';
+    }
+  }
+
+  function hideStatus() {
+    statusBar.className = '';
+    statusBar.style.display = 'none';
+  }
+</script>
+</body>
+</html>
